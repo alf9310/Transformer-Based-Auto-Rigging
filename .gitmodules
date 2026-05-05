@@ -1,3 +1,6 @@
 [submodule "RigAnything"]
 	path = RigAnything
 	url = https://github.com/alf9310/RigAnything
+[submodule "MagicArticulate"]
+	path = MagicArticulate
+	url = https://github.com/crf3480/MagicArticulate
