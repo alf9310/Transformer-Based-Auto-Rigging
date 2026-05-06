@@ -20,7 +20,6 @@ The evaluation targets two questions:
 - [Running Evaluation](#running-evaluation)
   - [RigAnything](#riganything)
   - [MagicArticulate](#magicarticulate)
-  - [Quick Smoke Test](#quick-smoke-test)
 - [Metrics](#metrics)
 - [Results](#results)
 - [Project Phases](#project-phases)
@@ -42,11 +41,19 @@ Recent transformer-based models can infer both skeleton topology and skinning we
 .
 ├── RigAnything/              # Submodule (autoregressive diffusion-based rigging model)
 │   ├── data/ (NOT INCLUDED IN REPO DUE TO SIZE)
-│   │   ├── articulation_xlv2_test.npz       # Packed test-set ground truth
+│   │   ├── articulation_xlv2_test.npz      # Packed test-set ground truth
 │   │   └── meta_Articulation_XL_2.0.csv    # Metadata (uuid, category, vertex/joint counts, …)
 │   ├── evaluate_riganything.py   # End-to-end evaluation script for RigAnything
 |   └── results/                  # Per-sample CSV outputs and aggregate summaries
-├── MagicArticulate/          # Submodule (TODO)
+├── MagicArticulate/          # Submodule (autoregressive transformer rigging model)
+│   ├── data/ (NOT INCLUDED IN REPO DUE TO SIZE)
+│   │   ├── articulation_xlv2_test.npz      # Packed test-set ground truth
+│   │   └── meta_Articulation_XL_2.0.csv    # Metadata (uuid, category, vertex/joint counts, …)
+│   ├── skeleton_ckpt/ (NOT INCLUDED IN REPO DUE TO SIZE)
+│   │   ├── checkpoint_trainonv2_hier.pth    # Weights for hierarchical-order model
+│   │   └── checkpoint_trainonv2_spatial.pth # Weights for spatial-order model
+│   ├── evaluate_magicarticulate.py          # End-to-end evaluation script for MagicArticulate
+│   └── outputs/                             # Per-sample outputs and aggregate summaries
 └── README.md
 ```
 
@@ -88,10 +95,19 @@ pip install -r RigAnything/requirements.txt
 
 **MagicArticulate:**
 ```bash
-TODO
+conda create -n magicarticulate python=3.10 -y
+conda activate magicarticulate
+pip install torch==2.1.1 torchvision==0.16.1 torchaudio==2.1.1 --index-url https://download.pytorch.org/whl/cu118
+pip install -r MagicArticulate/requirements.txt
+pip install flash-attn==2.6.3 --no-build-isolation
 ```
 
-> **Note:** The top-level evaluation scripts (`evaluate_riganything.py`, `evaluate_magicarticulate.py`) must be run from the repo root inside the corresponding conda environment so that each model's local imports resolve correctly.
+Then download the Michelangelo encoder weights and MagicArticulate skeleton-generation checkpoint:
+```bash
+cd MagicArticulate && python download.py && cd ..
+```
+
+> **Note:** `evaluate_magicarticulate.py` must be run from inside the `MagicArticulate/` directory (or with `PYTHONPATH` set accordingly) so that the submodule's local imports resolve correctly.
 
 ---
 
@@ -152,8 +168,31 @@ python evaluate_riganything.py \
 ### MagicArticulate
 
 ```bash
-TODO
+conda activate magicarticulate
+cd MagicArticulate
+python evaluate_magicarticulate.py \
+    --dataset_path       data/articulation_xlv2_test.npz \
+    --pretrained_weights skeleton_ckpt/checkpoint_trainonv2_hier.pth \
+    --metadata_path      data/meta_Articulation_XL_2.0.csv \
+    --output_dir         outputs \
+    --save_name          magicarticulate_results \
+    --input_pc_num       8192 \
+    --hier_order
 ```
+
+> Omit `--hier_order` if you are using the spatial-order checkpoint (`checkpoint_trainonv2_spatial.pth`).
+
+**Key options:**
+
+| Flag | Default | Description |
+|---|---|---|
+| `--max_samples N` | None | Stop after N samples (good for smoke-testing) |
+| `--hier_order` | False | Use hierarchical sequence ordering; omit for spatial-order checkpoint |
+| `--precision` | `fp16` | Mixed precision dtype (`fp16`, `fp32`) |
+| `--metadata_path PATH` | None | CSV with `uuid,category_label` for per-category breakdown |
+| `--use_medial_axis` | False | Snap predicted joints to medial axis after generation |
+| `--input_pc_num N` | 8192 | Number of point-cloud samples fed to the encoder |
+| `--n_max_bones N` | 100 | Hard cap on number of generated bones |
 
 ---
 
